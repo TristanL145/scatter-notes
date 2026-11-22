@@ -1,0 +1,92 @@
+name: "CD: Android Build"
+
+on:
+  workflow_call:
+    inputs:
+      build_name:
+        description: Optional semantic version passed to flutter --build-name
+        required: false
+        type: string
+        default: ""
+      environment:
+        description: Deployment environment holding release signing secrets
+        required: false
+        type: string
+        default: android-release
+    secrets:
+      ANDROID_KEYSTORE_BASE64:
+        required: false
+      ANDROID_KEYSTORE_PASSWORD:
+        required: false
+      ANDROID_KEY_ALIAS:
+        required: false
+      ANDROID_KEY_PASSWORD:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: ./.github/actions/setup-flutter
+
+      - name: Configure Android release signing (when secrets are provided)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ] && \
+             [ -n "${ANDROID_KEYSTORE_PASSWORD:-}" ] && \
+             [ -n "${ANDROID_KEY_ALIAS:-}" ] && \
+             [ -n "${ANDROID_KEY_PASSWORD:-}" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/android/app/upload-keystore.jks
+            printf "storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=upload-keystore.jks\n" \
+              "$ANDROID_KEYSTORE_PASSWORD" \
+              "$ANDROID_KEY_PASSWORD" \
+              "$ANDROID_KEY_ALIAS" > app/android/key.properties
+            echo "Configured release signing credentials from environment secrets."
+          else
+            echo "Notice: Android signing secrets not configured; building with default debug signing."
+          fi
+
+      - name: Build Android release APK and App Bundle
+        working-directory: app
+        run: |
+          set -euo pipefail
+          extra_args=()
+          if [ -n "${{ inputs.build_name }}" ]; then
+            extra_args+=(--build-name "${{ inputs.build_name }}")
+          fi
+          flutter build apk --release "${extra_args[@]}"
+          flutter build appbundle --release "${extra_args[@]}"
+
+      - name: Clean up temporary signing credentials
+        if: always()
+        run: rm -f app/android/key.properties app/android/app/upload-keystore.jks
+
+      - name: Upload Android release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-artifacts
+          path: |
+            app/build/app/outputs/flutter-apk/app-release.apk
+            app/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 14

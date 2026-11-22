@@ -1,0 +1,31 @@
+name: Setup Flutter
+description: Installs Flutter SDK with caching and optionally fetches pub dependencies.
+
+inputs:
+  working-directory:
+    description: Directory containing pubspec.yaml
+    required: false
+    default: app
+  channel:
+    description: Flutter release channel
+    required: false
+    default: stable
+  run-pub-get:
+    description: Whether to run flutter pub get
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Flutter SDK
+      uses: subosito/flutter-action@v2
+      with:
+        channel: ${{ inputs.channel }}
+        cache: true
+
+    - name: Install Dart & Flutter dependencies
+      if: inputs.run-pub-get == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: flutter pub get

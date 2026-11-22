@@ -1,0 +1,22 @@
+name: "CI: Flutter Analyze"
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: ./.github/actions/setup-flutter
+
+      - name: Run static analysis
+        working-directory: app
+        run: flutter analyze --fatal-infos

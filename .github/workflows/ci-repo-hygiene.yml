@@ -1,0 +1,47 @@
+name: "CI: Repo Hygiene"
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify required documentation files exist
+        run: |
+          set -euo pipefail
+          required_files=(
+            "README.md"
+            "LICENSE"
+            "SECURITY.md"
+            "CONTRIBUTING.md"
+            "CODE_OF_CONDUCT.md"
+            "docs/product-spec.md"
+            "docs/architecture.md"
+            "docs/github-security-and-settings.md"
+          )
+          for file in "${required_files[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "::error::Missing required file: $file"
+              exit 1
+            fi
+          done
+          echo "All required documentation files are present."
+
+      - name: Check for accidentally committed secret files
+        run: |
+          set -euo pipefail
+          forbidden=$(git ls-files | grep -E '(^|/)\.env(\..*)?$|(^|/)key\.properties$|(^|/)google-services\.json$|(^|/)GoogleService-Info\.plist$|\.(keystore|jks|pem|p12)$' | grep -vE '(^|/)\.env\.example$' || true)
+          if [ -n "$forbidden" ]; then
+            echo "::error::Forbidden secret/signing files tracked in git:"
+            echo "$forbidden"
+            exit 1
+          fi
+          echo "No forbidden secret or signing files detected in git index."
