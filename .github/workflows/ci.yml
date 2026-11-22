@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,83 +19,24 @@ concurrency:
 jobs:
   repo-hygiene:
     name: repo-hygiene
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
+    uses: ./.github/workflows/ci-repo-hygiene.yml
 
-      - name: Verify required documentation files exist
-        run: |
-          set -euo pipefail
-          required_files=(
-            "README.md"
-            "LICENSE"
-            "SECURITY.md"
-            "CONTRIBUTING.md"
-            "CODE_OF_CONDUCT.md"
-            "docs/product-spec.md"
-            "docs/architecture.md"
-            "docs/github-security-and-settings.md"
-          )
-          for file in "${required_files[@]}"; do
-            if [ ! -f "$file" ]; then
-              echo "::error::Missing required file: $file"
-              exit 1
-            fi
-          done
-          echo "All required documentation files are present."
+  flutter-format:
+    name: flutter-format
+    uses: ./.github/workflows/ci-flutter-format.yml
 
-      - name: Check for accidentally committed secret files
-        run: |
-          set -euo pipefail
-          forbidden=$(git ls-files | grep -E '(^|/)\.env(\..*)?$|(^|/)key\.properties$|(^|/)google-services\.json$|(^|/)GoogleService-Info\.plist$|\.(keystore|jks|pem|p12)$' | grep -vE '(^|/)\.env\.example$' || true)
-          if [ -n "$forbidden" ]; then
-            echo "::error::Forbidden secret/signing files tracked in git:"
-            echo "$forbidden"
-            exit 1
-          fi
-          echo "No forbidden secret or signing files detected in git index."
+  flutter-analyze:
+    name: flutter-analyze
+    uses: ./.github/workflows/ci-flutter-analyze.yml
 
-  flutter-ci:
-    name: flutter-ci
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
+  flutter-test:
+    name: flutter-test
+    uses: ./.github/workflows/ci-flutter-test.yml
 
-      - name: Check if Flutter app is initialized
-        id: check_flutter
-        run: |
-          if [ -f "app/pubspec.yaml" ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Notice: app/pubspec.yaml not found yet. Skipping Flutter build/test steps until Phase 1 scaffold."
-          fi
-
-      - name: Set up Flutter
-        if: steps.check_flutter.outputs.exists == 'true'
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Install dependencies
-        if: steps.check_flutter.outputs.exists == 'true'
-        working-directory: app
-        run: flutter pub get
-
-      - name: Verify formatting
-        if: steps.check_flutter.outputs.exists == 'true'
-        working-directory: app
-        run: dart format --output=none --set-exit-if-changed .
-
-      - name: Analyze Dart code
-        if: steps.check_flutter.outputs.exists == 'true'
-        working-directory: app
-        run: flutter analyze --fatal-infos
-
-      - name: Run unit & widget tests
-        if: steps.check_flutter.outputs.exists == 'true'
-        working-directory: app
-        run: flutter test
+  flutter-build-android:
+    name: flutter-build-android
+    needs:
+      - flutter-format
+      - flutter-analyze
+      - flutter-test
+    uses: ./.github/workflows/ci-flutter-build-android.yml

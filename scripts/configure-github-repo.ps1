@@ -155,7 +155,12 @@ if (-not (Invoke-GhApi -GhPath $gh -Method PUT -Endpoint "repos/$Owner/$Repo/act
 $protectionBody = @{
     required_status_checks = @{
         strict   = $true
-        contexts = @("repo-hygiene")
+        contexts = @(
+            "repo-hygiene / check",
+            "flutter-format / check",
+            "flutter-analyze / check",
+            "flutter-test / check"
+        )
     }
     enforce_admins = $false
     required_pull_request_reviews = @{

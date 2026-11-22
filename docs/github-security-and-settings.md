@@ -27,7 +27,7 @@ Automated setup script: [`scripts/configure-github-repo.ps1`](../scripts/configu
 | **Require Pull Request before merging** | Enabled | Prevents accidental direct pushes to `main` |
 | **Required approving reviews** | `0` *(solo-dev baseline)* | GitHub forbids approving your own PR; raise to `1`+ when collaborators join |
 | **Dismiss stale reviews on new commits** | Enabled | Ensures new commits are re-reviewed once reviewers are active |
-| **Require status checks to pass** | `repo-hygiene` (`strict: true`) | Guarantees PRs are up to date with `main` and pass documentation & secret-file checks before merge. Add `flutter-ci` here once `app/` is scaffolded |
+| **Require status checks to pass** | `repo-hygiene / check`, `flutter-format / check`, `flutter-analyze / check`, `flutter-test / check` (`strict: true`) | Guarantees PRs are up to date with `main` and pass hygiene, formatting, static analysis, and tests before merge |
 | **Require conversation resolution** | Enabled | Ensures all PR review comments are addressed before merging |
 | **Enforce admins** | `false` *(solo-dev baseline)* | Allows repository owner emergency bypass when working solo; enable (`true`) for teams |
 | **Allow force pushes / deletions** | Disabled | Protects `main` commit history from accidental rewriting or deletion |
@@ -51,17 +51,19 @@ Automated setup script: [`scripts/configure-github-repo.ps1`](../scripts/configu
 
 - **Workflow `GITHUB_TOKEN` default permissions**: Set to **read-only** (`default_workflow_permissions: "read"`). Workflows needing write access must request minimal scopes explicitly per job.
 - **Prevent Actions from approving PRs**: `can_approve_pull_request_reviews: false`.
-- **Least-privilege CI workflow**: `.github/workflows/ci.yml` sets `permissions: contents: read` at the workflow level and uses `concurrency` to cancel redundant PR runs.
+- **Least-privilege CI/CD orchestrators**:
+  - `.github/workflows/ci.yml` orchestrates modular `ci-*.yml` reusable task workflows (`ci-repo-hygiene.yml`, `ci-flutter-format.yml`, `ci-flutter-analyze.yml`, `ci-flutter-test.yml`, `ci-flutter-build-android.yml`) with top-level `permissions: contents: read` and PR `concurrency` cancellation.
+  - `.github/workflows/cd.yml` orchestrates modular `cd-*.yml` reusable task workflows (`cd-android-build.yml`, `cd-github-release.yml`) with top-level `permissions: contents: read`, elevating `contents: write` strictly on the `github-release` job.
+  - Shared Flutter toolchain setup lives in `.github/actions/setup-flutter/action.yml`.
 
 ---
 
 ## 5. Future Checklist (As Project Grows)
 
-1. **When Phase 1 scaffolds `app/`**:
-   - Uncomment the `pub` ecosystem block in `.github/dependabot.yml`.
-   - Add `flutter-ci` to `required_status_checks.contexts` on `main` (either via GitHub Settings or by updating `scripts/configure-github-repo.ps1`).
+1. **After Phase 1 PR merges to `main`**:
+   - Re-run `.\scripts\configure-github-repo.ps1 -Repo scatter-notes` so `main` branch protection enforces all 4 modular CI checks (`repo-hygiene / check`, `flutter-format / check`, `flutter-analyze / check`, `flutter-test / check`).
 2. **When releasing Android builds to Play Store / APK distribution**:
-   - Create a protected GitHub Environment (e.g., `android-release`) with **Required Reviewers** and **Wait Timer / Deployment Branches (`main` or `v*` tags only)**.
-   - Store the Base64-encoded upload keystore and signing passwords exclusively in that Environment's encrypted secrets—never in the repository.
+   - Create a protected GitHub Environment (`android-release`) with **Required Reviewers** and **Deployment Branches (`main` or `v*` tags only)** — already referenced by `cd-android-build.yml`.
+   - Store `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD` exclusively in that Environment's encrypted secrets—never in the repository.
 3. **When adding collaborators**:
    - Update `required_approving_review_count` to `1` (or `2`), enable `require_code_owner_reviews: true`, and set `enforce_admins: true`.

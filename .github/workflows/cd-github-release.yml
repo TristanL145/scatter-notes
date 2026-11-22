@@ -1,0 +1,47 @@
+name: "CD: GitHub Release"
+
+on:
+  workflow_call:
+    inputs:
+      tag_name:
+        description: Release tag name (e.g., v0.1.0)
+        required: true
+        type: string
+      prerelease:
+        description: Mark GitHub Release as a pre-release
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Android release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: android-release-artifacts
+          path: release-artifacts
+
+      - name: Create draft GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ inputs.tag_name }}
+          IS_PRERELEASE: ${{ inputs.prerelease }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          flags=(--repo "$REPO" --draft --generate-notes --title "$TAG_NAME")
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            flags+=(--prerelease)
+          fi
+          mapfile -t artifacts < <(find release-artifacts -type f | sort)
+          if [ "${#artifacts[@]}" -eq 0 ]; then
+            echo "::error::No release artifacts found to attach."
+            exit 1
+          fi
+          gh release create "$TAG_NAME" "${flags[@]}" "${artifacts[@]}"
