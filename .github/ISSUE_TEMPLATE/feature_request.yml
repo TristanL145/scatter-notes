@@ -1,0 +1,34 @@
+name: Feature Request
+description: Propose a new feature, flow, nudge, or organization capability.
+title: "[Feature]: "
+labels:
+  - "enhancement"
+  - "triage"
+body:
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      options:
+        - "Organization: Classes / Topics / Labels"
+        - "Logical Flows & Nudges"
+        - "Note Content & Editor"
+        - "Search & Navigation"
+        - "Platform / Performance"
+        - "Other"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What pain point in note-taking or organization does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe the ideal workflow, UI, or nudge behavior.
+    validations:
+      required: true
